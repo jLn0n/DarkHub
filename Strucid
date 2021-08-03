@@ -10,7 +10,7 @@ $$$$$$$  |\$$$$$$$ |$$ |      $$ | \$$\ $$ |  $$ |\$$$$$$  |$$$$$$$  |
 \_______/  \_______|\__|      \__|  \__|\__|  \__| \______/ \_______/ 
                                                            
                                                                       
-~Updated 7/17/2021
+~Updated 7/24/2021
 ]]
 
 
@@ -65,7 +65,6 @@ GunMods = {
 Recoil = false,
 Spread = false,
 FireRate = false,
-InfAmmo = false,
 InfRange = false,
 Wallbang = false
 },
@@ -73,7 +72,11 @@ LocalPlayer = {
 Nofatigue = false,
 NoFD = false,
 WS = 17,
-JP = 35
+JP = 50,
+Fly = false,
+FlySpeed = 100,
+Hitbox = false,
+HitboxSize = 10
 }
 }
 
@@ -163,13 +166,27 @@ LPTab:Toggle('No Fatigue',function(state)
 Config.LocalPlayer.Nofatigue = state
 end)
 
-LPTab:Slider('WalkSpeed', 17, 100, function(num)
+LPTab:Toggle('Fly',function(state)
+Config.LocalPlayer.Fly = state
+end)
+
+
+LPTab:Slider('WalkSpeed/FlySpeed', 17, 100, function(num)
 Config.LocalPlayer.WS = num
 end)
 
-LPTab:Slider('JumpPower', 35, 100, function(num)
+LPTab:Slider('JumpPower', 50, 100, function(num)
 Config.LocalPlayer.JP = num
 end)
+
+LPTab:Toggle('Hitbox',function(state)
+Config.LocalPlayer.Hitbox = state
+end)
+
+LPTab:Slider('Hitbox Size', 2, 50, function(num)
+Config.LocalPlayer.HitboxSize = num
+end)
+
 
    game:GetService("RunService").RenderStepped:Connect(function()
 game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = Config.LocalPlayer.WS
@@ -177,6 +194,46 @@ game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = Config.LocalPlayer.WS
 game.Players.LocalPlayer.Character.Humanoid.JumpPower = Config.LocalPlayer.JP
 end)
 
+game:GetService('UserInputService').InputBegan:connect(function(key, gpe)
+    if key.KeyCode == Enum.KeyCode.Space then
+        Temp_Up = true
+    end
+    if key.KeyCode == Enum.KeyCode.LeftShift then
+        Temp_Down = true
+    end
+end)
+game:GetService('UserInputService').InputEnded:connect(function(key, gpe)
+    if key.KeyCode == Enum.KeyCode.Space then
+        Temp_Up = false
+    end
+    if key.KeyCode == Enum.KeyCode.LeftShift then
+        Temp_Down = false
+    end
+end)
+spawn(function()
+    while true do
+        wait()
+        pcall(function()
+            if Config.LocalPlayer.Fly == true then
+                game:GetService("Workspace").Gravity = 0
+                Me = game.Players.LocalPlayer.Character
+                if Temp_Up == true then
+                    Me.HumanoidRootPart.Velocity = Vector3.new(0,40,0)
+                end
+                if Temp_Down == true then
+                    Me.HumanoidRootPart.Velocity = Vector3.new(0,-40,0)
+                end
+                if Temp_Down == false and Temp_Up == false then
+                    if Me.HumanoidRootPart.Velocity.Y ~= 0 then
+                        Me.HumanoidRootPart.Velocity = Vector3.new(0,0,0)
+                    end
+                end
+            else
+                game:GetService("Workspace").Gravity = 196.19999694824 
+            end
+        end)
+    end
+end)
 
 if game.PlaceId == 2377868063 then
  
@@ -378,11 +435,6 @@ Config.GunMods.FireRate = state
 Funcs:UpdateGuns()
 end)
 
---[[
-GunMods:Toggle('Infinite Ammo',function(state)
-Config.GunMods.InfAmmo = state
-end)
-]]
 
  
 
@@ -729,7 +781,7 @@ if b.Name ~= "Pickaxe" then
     require(b).Auto = true
   else
     require(b).Auto = require(game:GetService("ReplicatedStorage").Weapons.Modules[b.Name]).Auto
-  end
+    end
 end
 end
 end
@@ -782,7 +834,7 @@ else
 FOVCircle.Visible = false
 end
 if game.PlaceId == 2377868063 then
-if game.Players.LocalPlayer.PlayerGui.GameUI.CoreFrames.RoundStats.Gamemode.Text == "FFA" then
+if game:GetService("Players").LocalPlayer.PlayerGui.GameUI.CoreFrames.RoundStats.Gamemode.Text == " FFA" then
 Config.Visuals.TeamCheck = false
 else
 Config.Visuals.TeamCheck = true
@@ -806,17 +858,6 @@ if Config.GunMods.FireRate == true then
  getupvalue(getsenv(game:GetService("Players").LocalPlayer.PlayerGui.MainGui.NewLocal).Reload, 3).Debounce = 0
 end
 
-
-
-
-X = require(game:GetService("Players").LocalPlayer.PlayerGui.MainGui.NewLocal.Controller)
-
-    game:GetService("RunService").RenderStepped:Connect(function()
-if Config.GunMods.InfAmmo then
-
-    getupvalue(X.UpdateAmmoLabel,4)['Ammo'] = 40
-end
-end)
 
 
 if Config.GunMods.InfRange and hooked == false then
@@ -853,9 +894,30 @@ RayHook = hookfunction(workspace.FindPartOnRayWithIgnoreList,newcclosure(functio
 end))
 
 
+
 if game.GameId == 833423526 then
     print('Strucid')
 game:GetService("RunService").RenderStepped:Connect(function()
+    local localplayer = game.Players.LocalPlayer
+if Config.LocalPlayer.Hitbox == true then
+            for i,v in next, game:GetService('Players'):GetPlayers() do 
+    if v.Name ~= localplayer.Name then
+                pcall(function()
+                    v.Character.HumanoidRootPart.Name = "DarkHubTorso"
+                    v.Character.DarkHubTorso.Size = Vector3.new(Config.LocalPlayer.HitboxSize, Config.LocalPlayer.HitboxSize, Config.LocalPlayer.HitboxSize, Config.LocalPlayer.HitboxSize) --Any size it's bypassed now
+                    v.Character.DarkHubTorso.Transparency=0.5
+                    v.Character.DarkHubTorso.CanCollide  = false
+                    v.Character.DarkHubTorso.Color = Color3.fromHSV(i,3,5,2)
+
+                end)
+                    elseif Config.LocalPlayer.Hitbox == false then
+game.Players.LocalPlayer.Character.DarkHubTorso.Name = "HumanoidRootPart"
+v.Character.HumanoidRootPart.Size = Vector3.new(2, 2, 1)
+
+            end
+        end
+        wait()
+end
 
     for i,v in pairs(game:GetService("Players").LocalPlayer.PlayerGui:GetChildren()) do
         if v:IsA("LocalScript") then
