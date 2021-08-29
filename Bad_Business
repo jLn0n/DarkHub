@@ -37,7 +37,8 @@ IsUpToDate = pcall(function()
             Rainbow =  DarkHub_Client.SavedSettings and DarkHub_Client.GameSettings.Toggles.Rainbow or false,
             Rainbow2 = DarkHub_Client.SavedSettings and DarkHub_Client.GameSettings.Toggles.Rainbow2 or false,
             Wallbang = DarkHub_Client.SavedSettings and DarkHub_Client.GameSettings.Toggles.Wallbang or false,
-            RapidFire = DarkHub_Client.SavedSettings and DarkHub_Client.GameSettings.Toggles.RapidFire or false
+            RapidFire = DarkHub_Client.SavedSettings and DarkHub_Client.GameSettings.Toggles.RapidFire or false,
+            NoSpread = DarkHub_Client.SavedSettings and DarkHub_Client.GameSettings.Toggles.NoSpread or false
         },
         Visuals = {
             BoxEsp = false,
@@ -70,18 +71,13 @@ MainWindow:Toggle("Fly", function(state)
 end,Client.Toggles.Fly)
 
 
-
+local TS = require(game:GetService("ReplicatedStorage"):WaitForChild("TS"));
+local Timer = TS.Timer
+local Control = getupvalue(Timer.BindToHeartbeat,1)['Control']
 
 MainWindow:Slider("Speed", 2, 10, function(num)
     Client.Values.Speed = num
-    for i,v in pairs(getgc(true)) do
-        if type(v) == 'table' and rawget(v,'Control') and type(v.Control) == 'function' then
-            if table.find(getconstants(v.Control),'Stand') then
-                print(getconstant(v.Control,tonumber(table.find(getconstants(v.Control),'Stand'))+1))
-                setconstant(v.Control,tonumber(table.find(getconstants(v.Control),'Stand'))+1,num)
-            end
-        end
-    end
+    setconstant(Control,tonumber(table.find(getconstants(Control),'Stand'))+1,num)
 end,Client.Values.Speed)
 
 
@@ -90,6 +86,9 @@ end,Client.Values.Speed)
 MainWindow:Toggle("No Recoil", function(state)
     Client.Toggles.NoRecoil = state
 end,Client.Toggles.NoRecoil)
+MainWindow:Toggle("No Spread", function(state)
+    Client.Toggles.NoSpread = state
+end,Client.Toggles.NoSpread)
 MainWindow:Toggle("Rapid Fire", function(state)
     Client.Toggles.RapidFire = state
 end,Client.Toggles.RapidFire)
@@ -155,6 +154,24 @@ spawn(function()
     while true do
         wait()
         pcall(function()
+            if Client.Toggles.KillAura then
+                for i,v in pairs(GetCharacters()) do
+                    local Me = Main.Characters:GetCharacter(game.Players.LocalPlayer)
+                    if Me and v.Hitbox and (v.Hitbox.Chest.Position - game.Workspace.CurrentCamera.CFrame.p).Magnitude < 25 then
+                        if Me.Backpack.Equipped ~= Me:FindFirstChild('Stab',true).Parent.Parent then
+                            game:GetService("ReplicatedStorage"):FindFirstChild('Item',true):FireServer("Equip", Me:FindFirstChild('Stab',true).Parent.Parent)   
+                        end
+                        local v1 = "Stab"
+                        local v2 = Me:FindFirstChild('Stab',true).Parent.Parent
+                        local v3 = v.Hitbox.Chest
+                        local v4 = Vector3.new()
+                        local v5 = Vector3.new()
+                        local event = game:GetService("ReplicatedStorage"):FindFirstChild('Item_Melee',true)
+                        
+                        event:FireServer(v1, v2, v3, v4, v5)
+                    end
+                end
+            end
             if Client.Toggles.Fly == true then
                 game:GetService("Workspace").Gravity = 0
                 Me = Main.Characters:GetCharacter(game.Players.LocalPlayer)
@@ -180,6 +197,9 @@ end)
 Aimbotz:Toggle("Silent-Aim", function(state)
     Client.Toggles.SilentAim = state
 end,Client.Toggles.SilentAim)
+Aimbotz:Toggle('Kill Aura',function(state)
+    Client.Toggles.KillAura = state
+end,Client.Toggles.KillAura)
 
 Aimbotz:Toggle('FOV Visible',function(state)
     Client.Toggles.FOV = state
@@ -233,11 +253,13 @@ function getClosestPlayerToCursor()
     local closestPlayer = nil
     local shortestDistance = math.huge
         for i, v in pairs(GetCharacters()) do
-            local pos = currentCamera:WorldToViewportPoint(v.Body.Head.Position)
-            local magnitude = (Vector2.new(pos.X, pos.Y) - Vector2.new(Mouse.X, Mouse.Y)).magnitude
-            if magnitude < shortestDistance and magnitude <= Client.Values.FOV then
-                closestPlayer = v
-                shortestDistance = magnitude
+            if v:FindFirstChild('Body') and v.Body:FindFirstChild('Head') then
+                local pos = currentCamera:WorldToViewportPoint(v.Body.Head.Position)
+                local magnitude = (Vector2.new(pos.X, pos.Y) - Vector2.new(Mouse.X, Mouse.Y)).magnitude
+                if magnitude < shortestDistance and magnitude <= Client.Values.FOV then
+                    closestPlayer = v
+                    shortestDistance = magnitude
+                end
             end
         end  
     return closestPlayer
@@ -254,44 +276,51 @@ end)
 
 Main = require(game:GetService("ReplicatedStorage"):WaitForChild("TS"));
 Camera =  game.Workspace.CurrentCamera
-OldLV = hookfunction(Main.Input.Reticle.LookVector , function()
-    if Client.Toggles.SilentAim == false then
-        return game.Workspace.CurrentCamera.CFrame.LookVector
-    end
-    x = nil
-    target = nil
-    pcall(function()
-        target = getClosestPlayerToCursor()
-    end)
-    if target == nil then
-        return game.Workspace.CurrentCamera.CFrame.LookVector
-    end
-    Camera = game.Workspace.CurrentCamera
-    xt = target
-    Camera  = {
-        CFrame = CFrame.new(Camera.CFrame.p,xt.Body[GetAimPart()].Position)
-    }
-    x = (Camera.CFrame).LookVector
-
-    if not xt:FindFirstChild('Body') or not xt.Body:FindFirstChild(GetAimPart()) or x == nil then
-        return game.Workspace.CurrentCamera.CFrame.LookVector
-    end
-    if x ~= nil then
-        return x
-    else
-        return game.Workspace.CurrentCamera.CFrame.LookVector
-    end
+local getcallingfunction = function(stack)
+    return debug.getinfo(stack + 1).func
+end
+OldIndex = hookfunction(getrawmetatable(game).__index,function(...)
+	local Self,Key = ...
+	if tostring(Self) == 'Camera' and tostring(Key) == 'CFrame' and tostring(getfenv(2).script) == 'ItemControlScript' then
+	    if Client.Toggles.SilentAim and getClosestPlayerToCursor() and tostring(debug.getinfo(getcallingfunction(3)).name) == 'LookVector' then
+            local target = getClosestPlayerToCursor()
+            if target then
+                Camera = game.Workspace.CurrentCamera
+                if target.Body then
+                    IsValid = pcall(function()
+                        local X = CFrame.new(Camera.CFrame.p,target.Body[GetAimPart()].Position)
+                    end)
+                    if IsValid then
+                        Camera = {
+                            CFrame = CFrame.new(Camera.CFrame.p,target.Body[GetAimPart()].Position)
+                        }
+                    end
+                end
+                return (Camera.CFrame)
+            end
+		end
+	end
+	return OldIndex(...)
 end)
 
-OldRecoil = hookfunction(Main.Camera.Recoil.Fire,function(self, name, ...)
-    local args = {...}
-    if Client.Toggles.NoRecoil then
-        return nil
-    else
-        return OldRecoil(self, name, unpack(args))
+OldRANDOM = hookfunction(getrenv().math.random,function(...)
+    local Args = {...}
+    if tostring(getfenv(2).script) == 'ItemControlScript' and Client.Toggles.NoSpread then
+        if math.abs(Args[1]) == Args[2] then
+            Args[1] = -0.1
+            Args[2] = 0.1
+            return OldRANDOM(unpack(Args))
+        end
     end
+    return OldRANDOM(...)
 end)
 
+OldRecoil = hookfunction(Main.Camera.Recoil.Update,function(p6, p7)
+    if Client.Toggles.NoRecoil == true then
+        return p6.Value - p6.LastValue;
+    end
+    return OldRecoil(p6,p7)
+end)
 
 Main = require(game:GetService("ReplicatedStorage"):WaitForChild("TS"));
 Old = Main.Timer.Wait
